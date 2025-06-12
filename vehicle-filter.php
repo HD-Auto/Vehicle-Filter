@@ -216,7 +216,7 @@ function vfd_enqueue_scripts() {
         'vehicle-filter-ajax',
         plugin_dir_url(__FILE__) . 'js/vehicle-filter.js',
         ['jquery'],
-        time(), // AGGRESSIVE CACHE BUSTING FOR DEBUGGING - CHANGE TO A STATIC VERSION IN PRODUCTION!
+        '2.0.0',
         true
     );
 
@@ -224,7 +224,7 @@ function vfd_enqueue_scripts() {
         'vehicle-filter-css',
         plugin_dir_url(__FILE__) . 'css/vehicle-filter.css',
         [],
-        time() // AGGRESSIVE CACHE BUSTING FOR DEBUGGING - CHANGE TO A STATIC VERSION IN PRODUCTION!
+        '2.0.0'
     );
 
     // Pass data to JavaScript
