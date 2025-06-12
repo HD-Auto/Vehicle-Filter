@@ -3,7 +3,7 @@
  * Plugin Name:       Vehicle Filter Dropdowns
  * Plugin URI:        https://hdautomotive.com.au
  * Description:       Adds a shortcode [vehicle_filter_dropdowns] to display cascading dropdowns for the 'vehicles' custom taxonomy.
- * Version:           2.0.0
+ * Version:           2.2.0
  * Author:            Brodie Owens
  * Author URI:        https://hdautomotive.com.au/
  * License:           GPL v2 or later
@@ -24,11 +24,9 @@ define('YEAR_TAXONOMY', 'model_year');
 add_action('init', 'vfd_define_shop_url');
 function vfd_define_shop_url() {
     if ( ! defined('VFD_SHOP_URL') ) {
-        // Ensure WooCommerce is active and its function exists before calling
         if ( class_exists( 'WooCommerce' ) && function_exists( 'wc_get_page_permalink' ) ) {
             define('VFD_SHOP_URL', wc_get_page_permalink('shop') ?: home_url('/shop/'));
         } else {
-            // Fallback if WooCommerce is not active (though the plugin needs WC to function fully)
             define('VFD_SHOP_URL', home_url('/shop/'));
         }
     }
@@ -40,10 +38,8 @@ function vfd_define_shop_url() {
  */
 add_shortcode('vehicle_filter_dropdowns', 'vfd_display_dropdowns_shortcode');
 function vfd_display_dropdowns_shortcode() {
-    // Start output buffering to capture the HTML
     ob_start();
 
-    // Get top-level terms (e.g., Makes)
     $parent_terms = get_terms([
         'taxonomy'   => VFD_TAXONOMY,
         'hide_empty' => false,
@@ -52,98 +48,99 @@ function vfd_display_dropdowns_shortcode() {
         'order'      => 'ASC',
     ]);
 
-    // Get current selections from URL parameters (these will be present on the shop page after filtering)
     $selected_make = isset($_GET['filterMake']) ? intval($_GET['filterMake']) : '';
     $selected_model = isset($_GET['filterModel']) ? intval($_GET['filterModel']) : '';
     $selected_year = isset($_GET['filterYear']) ? intval($_GET['filterYear']) : '';
 
-    // Ensure VFD_SHOP_URL is defined before trying to use it.
     $shop_url = defined('VFD_SHOP_URL') ? VFD_SHOP_URL : home_url('/shop/');
 
     ?>
     <div id="vehicle-filter-container" class="vehicle-filter-container">
-        <form id="vehicle-filter-form" class="vehicle-filter-form" method="GET" action="<?php echo esc_url($shop_url); ?>">
 
-            <div class="filter-group">
-                <label for="vfd-make">Make</label>
-                <select name="filterMake" id="vfd-make">
-                    <option value="">Select Make</option>
-                    <?php if (!is_wp_error($parent_terms) && !empty($parent_terms)) : ?>
-                        <?php foreach ($parent_terms as $term) : ?>
-                            <option value="<?php echo esc_attr($term->term_id); ?>" <?php selected($selected_make, $term->term_id); ?>><?php echo esc_html($term->name); ?></option>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </select>
-            </div>
+        <!-- Drawer Toggle for Mobile -->
+        <button id="vfd-drawer-toggle" class="vfd-drawer-toggle" style="display:none;">
+            <span class="vfd-toggle-text">Select Vehicle</span>
+            <span class="vfd-toggle-icon">&#x25BC;</span> <!-- Downward arrow -->
+        </button>
 
-            <div class="filter-group">
-                <label for="vfd-model">Model</label>
-                <select name="filterModel" id="vfd-model" <?php echo empty($selected_make) ? 'disabled' : ''; ?>>
-                    <option value="">Select Make First</option>
-                    <?php if ($selected_make) {
-                        $child_terms = get_terms([
-                            'taxonomy' => VFD_TAXONOMY,
-                            'hide_empty' => false,
-                            'parent' => $selected_make,
-                            'orderby' => 'name',
-                            'order' => 'ASC'
-                        ]);
-                        if (!is_wp_error($child_terms) && !empty($child_terms)) {
-                            echo '<option value="">Select Model</option>';
-                            foreach ($child_terms as $term) {
-                                echo '<option value="' . esc_attr($term->term_id) . '" ' . selected($selected_model, $term->term_id, false) . '>' . esc_html($term->name) . '</option>';
+        <!-- Drawer Content (wraps the form) -->
+        <div id="vfd-drawer-content" class="vfd-drawer-content">
+            <form id="vehicle-filter-form" class="vehicle-filter-form" method="GET" action="<?php echo esc_url($shop_url); ?>">
+                <div class="filter-group">
+                    <select name="filterMake" id="vfd-make">
+                        <option value="">Select Make</option>
+                        <?php if (!is_wp_error($parent_terms) && !empty($parent_terms)) : ?>
+                            <?php foreach ($parent_terms as $term) : ?>
+                                <option value="<?php echo esc_attr($term->term_id); ?>" <?php selected($selected_make, $term->term_id); ?>><?php echo esc_html($term->name); ?></option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <select name="filterModel" id="vfd-model" <?php echo empty($selected_make) ? 'disabled' : ''; ?>>
+                        <option value="">Select Make First</option>
+                        <?php if ($selected_make) {
+                            $child_terms = get_terms([
+                                'taxonomy' => VFD_TAXONOMY,
+                                'hide_empty' => false,
+                                'parent' => $selected_make,
+                                'orderby' => 'name',
+                                'order' => 'ASC'
+                            ]);
+                            if (!is_wp_error($child_terms) && !empty($child_terms)) {
+                                echo '<option value="">Select Model</option>';
+                                foreach ($child_terms as $term) {
+                                    echo '<option value="' . esc_attr($term->term_id) . '" ' . selected($selected_model, $term->term_id, false) . '>' . esc_html($term->name) . '</option>';
+                                }
                             }
-                        }
-                    } ?>
-                </select>
-            </div>
+                        } ?>
+                    </select>
+                </div>
 
-            <div class="filter-group">
-                <label for="vfd-year">Year</label>
-                <select name="filterYear" id="vfd-year" <?php echo empty($selected_model) ? 'disabled' : ''; ?>>
-                    <option value="">Select Model First</option>
-                    <?php if ($selected_model) {
-                        // Get posts with the selected model to find available years
-                        $post_ids = get_posts([
-                            'post_type' => 'product',
-                            'posts_per_page' => -1,
-                            'fields' => 'ids',
-                            'tax_query' => [
-                                ['taxonomy' => VFD_TAXONOMY, 'field' => 'term_id', 'terms' => $selected_model],
-                            ],
-                        ]);
+                <div class="filter-group">
+                    <select name="filterYear" id="vfd-year" <?php echo empty($selected_model) ? 'disabled' : ''; ?>>
+                        <option value="">Select Model First</option>
+                        <?php if ($selected_model) {
+                            $post_ids = get_posts([
+                                'post_type' => 'product',
+                                'posts_per_page' => -1,
+                                'fields' => 'ids',
+                                'tax_query' => [
+                                    ['taxonomy' => VFD_TAXONOMY, 'field' => 'term_id', 'terms' => $selected_model],
+                                ],
+                            ]);
 
-                        if (!empty($post_ids)) {
-                            $year_terms = wp_get_object_terms($post_ids, YEAR_TAXONOMY, ['orderby' => 'name', 'order' => 'DESC']);
-                            if (!is_wp_error($year_terms) && !empty($year_terms)) {
-                                echo '<option value="">Select Year</option>';
-                                // Remove duplicates
-                                $unique_years = [];
-                                foreach ($year_terms as $term) {
-                                    if (!isset($unique_years[$term->term_id])) {
-                                        $unique_years[$term->term_id] = $term;
+                            if (!empty($post_ids)) {
+                                $year_terms = wp_get_object_terms($post_ids, YEAR_TAXONOMY, ['orderby' => 'name', 'order' => 'DESC']);
+                                if (!is_wp_error($year_terms) && !empty($year_terms)) {
+                                    echo '<option value="">Select Year</option>';
+                                    $unique_years = [];
+                                    foreach ($year_terms as $term) {
+                                        if (!isset($unique_years[$term->term_id])) {
+                                            $unique_years[$term->term_id] = $term;
+                                        }
+                                    }
+                                    foreach ($unique_years as $term) {
+                                        echo '<option value="' . esc_attr($term->term_id) . '" ' . selected($selected_year, $term->term_id, false) . '>' . esc_html($term->name) . '</option>';
                                     }
                                 }
-                                foreach ($unique_years as $term) {
-                                    echo '<option value="' . esc_attr($term->term_id) . '" ' . selected($selected_year, $term->term_id, false) . '>' . esc_html($term->name) . '</option>';
-                                }
                             }
-                        }
-                    } ?>
-                </select>
-            </div>
+                        } ?>
+                    </select>
+                </div>
 
-            <div class="filter-group filter-buttons">
-                <button type="submit" id="vfd-submit-button"
-                    <?php echo (empty($selected_make) || empty($selected_model) || empty($selected_year)) ? 'disabled' : ''; ?>>
-                    Set
-                </button>
-                <button type="button" id="vfd-reset-button">Reset</button>
-            </div>
-        </form>
+                <div class="filter-group filter-buttons">
+                    <button type="submit" id="vfd-submit-button"
+                        <?php echo (empty($selected_make) || empty($selected_model) || empty($selected_year)) ? 'disabled' : ''; ?>>
+                        Filter Products
+                    </button>
+                    <button type="button" id="vfd-reset-button">Reset</button>
+                </div>
+            </form>
+        </div><!-- #vfd-drawer-content -->
 
-        <!-- Placeholder for displayed vehicle info -->
-        <!-- Hidden by default with inline style, JS will manage its visibility -->
+        <!-- My Vehicle Display (remains outside drawer for direct visibility) -->
         <div id="vfd-display-vehicle-info" style="display:none;">
             <span class="vfd-info-text"></span>
             <button type="button" id="vfd-reset-display-button" class="vfd-button-small">Reset</button>
@@ -151,7 +148,6 @@ function vfd_display_dropdowns_shortcode() {
         </div>
     </div>
     <?php
-    // Return the buffered content
     return ob_get_clean();
 }
 
@@ -216,7 +212,7 @@ function vfd_enqueue_scripts() {
         'vehicle-filter-ajax',
         plugin_dir_url(__FILE__) . 'js/vehicle-filter.js',
         ['jquery'],
-        '2.0.0',
+        time(), // AGGRESSIVE CACHE BUSTING FOR DEBUGGING - CHANGE TO A STATIC VERSION IN PRODUCTION!
         true
     );
 
@@ -224,7 +220,7 @@ function vfd_enqueue_scripts() {
         'vehicle-filter-css',
         plugin_dir_url(__FILE__) . 'css/vehicle-filter.css',
         [],
-        '2.0.0'
+        time(), // AGGRESSIVE CACHE BUSTING FOR DEBUGGING - CHANGE TO A STATIC VERSION IN PRODUCTION!
     );
 
     // Pass data to JavaScript

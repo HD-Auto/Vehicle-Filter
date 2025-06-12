@@ -6,6 +6,7 @@
 		};
 		log('jQuery document ready. Script started.');
 
+		const vehicleFilterContainer = $('#vehicle-filter-container');
 		const makeSelect = $('#vfd-make');
 		const modelSelect = $('#vfd-model');
 		const yearSelect = $('#vfd-year');
@@ -17,6 +18,10 @@
 		const displayVehicleInfoText = displayVehicleInfoContainer.find('.vfd-info-text');
 		const resetDisplayButton = $('#vfd-reset-display-button');
 		const goToShopButton = $('#vfd-go-to-shop-button');
+
+		const drawerToggle = $('#vfd-drawer-toggle');
+		const drawerContent = $('#vfd-drawer-content');
+		const drawerToggleText = drawerToggle.find('.vfd-toggle-text');
 
 		const shopUrl = vfd_ajax_object.shop_url;
 		const SESSION_STORAGE_KEY = 'vfd_selected_filters';
@@ -118,28 +123,61 @@
 		}
 
 		// --- UI State Management ---
-		function showDropdownForm() {
-			log('showDropdownForm() called. Displaying dropdowns.');
-			form.css('display', 'flex');
-			displayVehicleInfoContainer.hide();
 
+		function isMobileLayout() {
+			return window.matchMedia("(max-width: 1024px)").matches;
+		}
+
+		/**
+		 * Shows the dropdown form and hides the display info.
+		 * Resets dropdowns to initial "Select Make" state.
+		 * Handles drawer state based on mobile layout.
+		 */
+		function showDropdownForm() {
+			log('showDropdownForm() called. Displaying dropdowns (and handling drawer).');
+			displayVehicleInfoContainer.hide(); // Always hide display info
+
+			const mobile = isMobileLayout();
+
+			if (mobile) {
+				drawerToggle.show(); // Show mobile toggle
+				drawerToggle.removeClass('active'); // Ensure drawer is closed visually
+				drawerContent.hide(); // Hide content (jQuery slideToggle will handle height animation from here)
+				form.hide(); // Keep form hidden inside the drawer (will be shown on slideToggle complete)
+				drawerToggleText.text('Select Vehicle'); // Set toggle text
+			} else {
+				drawerToggle.hide(); // Hide mobile toggle
+				drawerContent.show(); // Ensure content is visible on desktop (no max-height)
+				form.css('display', 'flex'); // Show form directly on desktop
+			}
+
+			// Reset dropdowns to default "Select Make" state
 			makeSelect.val('');
 			modelSelect.val('').prop('disabled', true).html('<option value="">Select Make First</option>');
 			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
 			toggleSubmitButton(false);
 		}
 
+		/**
+		 * Hides the dropdown form and displays the selected vehicle info.
+		 * Also populates the dropdowns in the background, in case user clicks Reset.
+		 * Handles drawer state based on mobile layout.
+		 * @param {object} filters - Object with make, model, year IDs and names.
+		 */
 		function showDisplayVehicleInfo(filters) {
 			if (!filters || !filters.makeName || !filters.modelName || !filters.yearName) {
 				log('Invalid filters for showDisplayVehicleInfo. Falling back to dropdowns.', filters);
-				showDropdownForm();
+				showDropdownForm(); // Fallback to dropdowns
 				return;
 			}
 
 			log('showDisplayVehicleInfo() called with filters:', filters);
-			form.hide();
-			displayVehicleInfoContainer.css('display', 'flex');
 
+			form.hide(); // Hide the actual form
+			drawerContent.hide(); // Hide and collapse drawer content using .hide()
+			drawerToggle.hide(); // Hide the drawer toggle button as "My Vehicle" takes precedence
+
+			displayVehicleInfoContainer.css('display', 'flex'); // Ensure display info is flex for display
 			displayVehicleInfoText.html(`My Vehicle: <strong>${filters.makeName}</strong> <strong>${filters.modelName}</strong> <strong>${filters.yearName}</strong>`);
 
 			const currentFilteredShopUrl = new URL(shopUrl);
@@ -166,7 +204,7 @@
 		// --- Initialization Logic ---
 		async function initializeUI() {
 			log('initializeUI() starting.');
-			$('#vehicle-filter-container').addClass('vfd-loading');
+			vehicleFilterContainer.addClass('vfd-loading');
 
 			const storedFilters = loadFiltersFromSession();
 			const currentUrl = new URL(window.location.href);
@@ -193,7 +231,7 @@
 				}
 			}
 			// PRIORITY 2: If no URL filters, check if complete filters exist in session storage.
-			else if (storedFilters) { // loadFiltersFromSession already checked for completeness
+			else if (storedFilters) {
 				log('Init Priority 2: Complete filters found in session storage (no URL filters).');
 				filtersToActivate = storedFilters;
 			} else {
@@ -203,13 +241,13 @@
 			if (filtersToActivate) {
 				log('Activating UI for filters:', filtersToActivate);
 				showDisplayVehicleInfo(filtersToActivate);
-				saveFiltersToSession(filtersToActivate); // Ensure filters are stored/updated
+				saveFiltersToSession(filtersToActivate);
 			} else {
 				log('No active filters found to activate. Showing dropdown form.');
 				showDropdownForm();
 			}
 
-			$('#vehicle-filter-container').removeClass('vfd-loading');
+			vehicleFilterContainer.removeClass('vfd-loading');
 			log('UI initialization complete. Removed loading class.');
 		}
 
@@ -220,10 +258,6 @@
 			modelSelect.val('').prop('disabled', true).html('<option value="">Select Make First</option>');
 			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
 			toggleSubmitButton(false);
-
-			// REMOVED: if (!makeId) { clearFiltersFromSession(); return; }
-			// This logic is now handled by saveFiltersToSession being called only with complete data
-			// or by explicit reset.
 
 			if (!makeId || skipAjax) {
 				log('Skipping AJAX for make change due to no ID or skipAjax flag.');
@@ -244,10 +278,6 @@
 			const modelId = $(this).val();
 			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
 			toggleSubmitButton(false);
-
-			// REMOVED: if (!modelId) { clearFiltersFromSession(); return; }
-			// This logic is now handled by saveFiltersToSession being called only with complete data
-			// or by explicit reset.
 
 			if (!modelId || skipAjax) {
 				log('Skipping AJAX for model change due to no ID or skipAjax flag.');
@@ -317,13 +347,33 @@
 			showDropdownForm();
 		});
 
-		$(window).on('pageshow', function(event) {
-			if (event.originalEvent.persisted) {
-				log('pageshow event triggered (from BFCache), re-initializing UI.');
-				initializeUI();
-			}
+		// --- Drawer Toggle Event Listener ---
+		drawerToggle.on('click', function() {
+			log('Drawer toggle clicked. Current state:', drawerToggle.hasClass('active') ? 'open' : 'closed');
+			drawerToggle.toggleClass('active'); // Rotate icon
+			drawerContent.slideToggle(300, function() {
+				// Callback after slideToggle completes
+				if (drawerContent.is(':visible')) {
+					log('Drawer content is now visible. Ensuring form is flex.');
+					form.css('display', 'flex'); // Ensure inner form is flex when drawer is open
+				} else {
+					log('Drawer content is now hidden. Hiding form.');
+					form.hide(); // Ensure inner form is hidden when drawer is closed
+				}
+			});
 		});
 
+		// --- Handle window resize to adjust UI based on breakpoint ---
+		let resizeTimeout;
+		$(window).on('resize', function() {
+			clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(function() {
+				log('Window resized. Re-evaluating UI based on layout.');
+				initializeUI(); // Re-run init to adjust desktop/mobile layout
+			}, 250);
+		});
+
+		// Initial setup on page load
 		log('Document ready. Calling initializeUI().');
 		initializeUI();
 	});

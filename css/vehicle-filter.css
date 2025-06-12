@@ -1,16 +1,18 @@
 /* Vehicle Filter Container */
 .vehicle-filter-container {
-    /*background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);*/
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     padding: 25px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     position: relative;
     overflow: hidden;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     min-height: 50px;
 }
 
 /* Initial state: Hide the dropdown form by default to prevent FOUC */
 #vehicle-filter-form {
-    display: none; /* Controlled by JavaScript's .show() which will apply 'display: flex' */
+    display: none; /* Controlled by JavaScript's .show() with flex override */
 }
 
 /* Form Layout - HORIZONTAL COLUMNS (DEFAULT for large screens) */
@@ -21,9 +23,7 @@
     gap: 20px; /* Space between flex items */
     align-items: flex-end; /* Align items to the bottom */
     margin-bottom: 0;
-    justify-content: center; /* Align items to the start */
-    margin-left: auto;
-    margin-right: auto;
+    justify-content: flex-start; /* Align items to the start */
 }
 
 /* Filter Groups - Equal width columns */
@@ -42,10 +42,11 @@
     gap: 12px;
     align-items: flex-end;
     min-width: auto;
+    margin-left: auto;
 }
 
 
-/* Labels */
+/* Labels - Hidden by default as per previous request */
 .filter-group label {
     display: none;
     font-weight: 600;
@@ -73,13 +74,12 @@
 .filter-group select {
     width: 100%;
     padding: 12px 16px;
-    border: 2px solid;
+    border: 2px solid #e9ecef;
     border-radius: 8px;
+    background-color: #fff;
     font-size: 1em;
     font-weight: 500;
-    background-color: #2d3748;
-    border-color: #4a5568;
-    color: #e2e8f0;
+    color: #495057;
     transition: all 0.3s ease;
     appearance: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
@@ -90,6 +90,7 @@
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     min-height: 48px;
+    margin-top: 0px; /* Adjusted to prevent space from hidden label */
 }
 
 .filter-group select:focus {
@@ -111,13 +112,12 @@
     cursor: not-allowed;
     opacity: 0.7;
     transform: none;
-    box-shadow: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236c757d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }
 
 /* Button Styling */
 .filter-group button {
-    padding: 5px 10px;
+    padding: 12px 24px;
     font-size: 0.95em;
     font-weight: 600;
     color: #fff;
@@ -125,8 +125,8 @@
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.3s ease;
-    min-width: 100px;
-    min-height: 46px;
+    min-width: 120px;
+    min-height: 48px;
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -212,7 +212,7 @@
 /* Container loading state */
 .vehicle-filter-container.vfd-loading {
     position: relative;
-    min-height: 100px; /* Ensure height for loading state */
+    min-height: 100px;
 }
 .vehicle-filter-container.vfd-loading::after {
     content: '';
@@ -228,55 +228,54 @@
 }
 /* Hide content when loading to prevent flicker */
 .vehicle-filter-container.vfd-loading #vehicle-filter-form,
-.vehicle-filter-container.vfd-loading #vfd-display-vehicle-info {
-    visibility: hidden; /* Use visibility to maintain space but hide content */
+.vehicle-filter-container.vfd-loading #vfd-display-vehicle-info,
+.vehicle-filter-container.vfd-loading #vfd-drawer-toggle { /* Also hide toggle during loading */
+    visibility: hidden;
 }
 
 
 /* --- New Styles for Display Vehicle Info --- */
 #vfd-display-vehicle-info {
     display: none; /* Hidden by default, JS will show */
-    padding: 12.5px 15px;
-    border: 2px solid #81c784; /* A more prominent border indicating active filters */
-    background-color: #e8f5e9; /* Light green background */
+    padding: 15px 20px;
+    border: 2px solid #81c784;
+    background-color: #e8f5e9;
     border-radius: 8px;
-    /* display: flex; will be applied by JS */
     align-items: center;
     gap: 15px;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
-    box-shadow: 0 2px 10px rgba(0,128,0,0.1); /* Subtle green shadow */
+    flex-wrap: wrap;
+    box-shadow: 0 2px 10px rgba(0,128,0,0.1);
     font-size: 1.1em;
     font-weight: 500;
-    color: #2e7d32; /* Darker green text */
-    justify-content: center;
+    color: #2e7d32;
 }
 
 #vfd-display-vehicle-info .vfd-info-text {
-    /*flex-grow: 1; Allow text to take up available space */
-    line-height: 1.5; /* Better readability */
+    flex-grow: 1;
+    line-height: 1.5;
 }
 
 #vfd-display-vehicle-info .vfd-info-text strong {
-    color: #1b5e20; /* Even darker green for emphasis */
+    color: #1b5e20;
     font-weight: 700;
 }
 
 /* General button style for the display view */
 .vfd-button-small {
-    padding: 8px 15px; /* Slightly smaller padding than main buttons */
-    font-size: 0.85em; /* Smaller font size */
-    border-radius: 6px; /* Slightly smaller border-radius */
+    padding: 8px 15px;
+    font-size: 0.85em;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.3s ease;
-    text-decoration: none; !important /* For the <a> tag */
-display: inline-block; /* For the <a> tag */
+    text-decoration: none;
+    display: inline-block;
     text-align: center;
-    min-width: 90px; /* Ensure buttons don't get too small */
-    box-shadow: 0 1px 5px rgba(0,0,0,0.1); /* Subtle shadow */
+    min-width: 90px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
 }
 
 #vfd-reset-display-button {
-    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%); /* Material Design Red */
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
     color: white;
     border: none;
 }
@@ -288,9 +287,8 @@ display: inline-block; /* For the <a> tag */
 }
 
 #vfd-go-to-shop-button {
-    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); /* Material Design Green */
-    text-decoration: none; !important
-color: white;
+    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+    color: white;
     border: none;
 }
 
@@ -300,24 +298,131 @@ color: white;
     box-shadow: 0 2px 8px rgba(76, 175, 80, 0.25);
 }
 
+
+/* --- Drawer Specific Styles --- */
+#vfd-drawer-toggle {
+    display: none; /* Hidden by default, shown by JS on mobile */
+    width: 100%;
+    padding: 15px 20px;
+    font-size: 1.1em;
+    font-weight: 600;
+    text-align: left;
+    background-color: #0073aa;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: flex; /* Flex to align text and icon */
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+#vfd-drawer-toggle:hover {
+    background-color: #005a87;
+    transform: translateY(-1px);
+}
+
+#vfd-drawer-toggle .vfd-toggle-icon {
+    font-size: 0.8em;
+    transition: transform 0.3s ease;
+    margin-left: 10px;
+}
+
+#vfd-drawer-toggle.active .vfd-toggle-icon {
+    transform: rotate(180deg);
+}
+
+#vfd-drawer-content {
+    display: none; /* Initially hidden */
+    overflow: hidden; /* Critical for slideToggle to work */
+    box-sizing: border-box; /* Good practice */
+    padding: 0; /* JS will add padding if needed */
+}
+
+#vfd-drawer-content.open {
+    max-height: 500px; /* Needs to be larger than max possible height of content */
+    padding-top: 20px; /* Add padding when open */
+    padding-bottom: 5px; /* Add padding when open */
+}
+
+
 /* Responsive Design */
-@media (max-width: 1024px) {
+/* Specific overrides for desktop layout in media query */
+@media (min-width: 1025px) {
+    #vfd-drawer-toggle {
+        display: none !important;
+    }
+
+    #vfd-drawer-content {
+        display: block !important; /* Ensure content is visible on desktop, not hidden by slideToggle */
+        height: auto !important; /* Reset height */
+        max-height: none !important; /* Ensure it's fully open */
+        padding: 0 !important; /* No padding from drawer content, let vehicle-filter-container handle it */
+        overflow: visible !important; /* Allow content to overflow */
+    }
+
     .vehicle-filter-form {
-        flex-direction: column; /* Force vertical stacking on smaller screens */
-        align-items: stretch; /* Stretch items to full width */
+        display: flex !important; /* Ensure it's flex on large screens */
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: flex-start;
+        gap: 20px;
+    }
+
+    .filter-group {
+        flex: 1;
+        min-width: 180px;
+        max-width: 250px;
+    }
+
+    .filter-group.filter-buttons {
+        margin-left: auto;
+    }
+}
+
+/* Mobile screens: Show drawer toggle, hide form inside drawer content */
+@media (max-width: 1024px) {
+    .vehicle-filter-container {
+        padding: 15px; /* Adjust padding for mobile */
+    }
+
+    #vfd-drawer-toggle {
+        display: flex; /* Show toggle button on mobile */
+    }
+
+    #vfd-drawer-content {
+        /* On mobile, this will be controlled by JS for open/close */
+        /* It defaults to max-height: 0 unless .open is added */
+    }
+
+    .vehicle-filter-form {
+        flex-direction: column; /* Stack vertically on smaller screens */
+        align-items: stretch;
         gap: 15px;
     }
 
     .filter-group {
-        min-width: auto; /* Remove min-width constraint */
-        flex: none; /* Don't grow/shrink */
-        max-width: none; /* Remove max-width constraint */
+        min-width: auto;
+        flex: none;
+        max-width: none;
     }
 
     .filter-group.filter-buttons {
-        flex-direction: row;
+        flex-direction: column; /* Stack buttons vertically on mobile */
         justify-content: center;
         margin-top: 10px;
+        margin-left: 0; /* Reset margin */
+    }
+
+    /* Adjust padding for dropdown form on mobile, now that drawer content has padding */
+    .vehicle-filter-form .filter-group {
+        padding-left: 0;
+        padding-right: 0;
     }
 
     #vfd-display-vehicle-info {
@@ -346,13 +451,6 @@ color: white;
         gap: 20px;
     }
 
-    .filter-group.filter-buttons {
-        flex-direction: column; /* Force vertical stacking for buttons on very small screens */
-        gap: 12px;
-        align-items: stretch;
-        margin-top: 10px;
-    }
-
     .filter-group button {
         width: 100%;
         min-width: auto;
@@ -372,6 +470,11 @@ color: white;
 
     #vfd-display-vehicle-info {
         padding: 15px;
+    }
+
+    #vfd-drawer-toggle {
+        padding: 12px 15px; /* Smaller padding for toggle */
+        font-size: 1em;
     }
 }
 
@@ -398,31 +501,33 @@ color: white;
     }
 }
 
-/* Tablet Landscape (769px to 1024px) - Use Grid for specific layout */
+/* Tablet Landscape (769px to 1024px) - Grid for specific layout */
 @media (min-width: 769px) and (max-width: 1024px) {
+    #vfd-drawer-toggle {
+        display: flex; /* Still show toggle for tablets */
+    }
+
     .vehicle-filter-form {
-        display: grid; /* Switch to CSS Grid for more control */
-        grid-template-columns: 1fr 1fr; /* Two equal columns */
-        grid-template-rows: auto auto; /* Two rows for content, then buttons */
+        display: grid !important; /* Force grid layout for dropdowns when open */
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
         gap: 18px;
-        align-items: end; /* Align items to the bottom of their grid cell */
+        align-items: end;
     }
 
-    /* Make Year dropdown span full width of the grid */
-    .filter-group:nth-child(3) { /* This targets the Year dropdown specifically */
-        grid-column: 1 / -1; /* Spans both columns */
-        max-width: 300px; /* Optional: limit width even when spanning */
-        justify-self: center; /* Center the single element in the row */
+    .filter-group:nth-child(3) {
+        grid-column: 1 / -1;
+        max-width: 300px;
+        justify-self: center;
     }
 
-    /* Make buttons span full width of the grid */
     .filter-group.filter-buttons {
-        grid-column: 1 / -1; /* Spans both columns */
+        grid-column: 1 / -1;
         justify-self: center;
         margin-top: 15px;
+        margin-left: 0; /* Reset margin */
     }
 
-    /* Ensure display info also adapts in this range */
     #vfd-display-vehicle-info {
         flex-direction: row;
         align-items: center;
@@ -465,8 +570,9 @@ color: white;
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
     .vehicle-filter-container {
-        /* background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); !important;*/
-        color: #e2e8f0; !important;
+        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+        color: #e2e8f0;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
     }
 
     .filter-group label {
@@ -474,9 +580,9 @@ color: white;
     }
 
     .filter-group select {
-        background-color: #2d3748; !important;
-        border-color: #4a5568; !important;
-        color: #e2e8f0; !important;
+        background-color: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
     }
 
     .filter-group select:disabled {
@@ -510,6 +616,15 @@ color: white;
     #vfd-go-to-shop-button:hover {
         background: linear-gradient(135deg, #176b17 0%, #0d4a0d 100%);
     }
+
+    #vfd-drawer-toggle {
+        background-color: #1a202c;
+        color: #e2e8f0;
+    }
+
+    #vfd-drawer-toggle:hover {
+        background-color: #2d3748;
+    }
 }
 
 /* Print Styles */
@@ -523,7 +638,8 @@ color: white;
 
     .filter-group button,
     #vfd-display-vehicle-info button,
-    #vfd-go-to-shop-button {
+    #vfd-go-to-shop-button,
+    #vfd-drawer-toggle { /* Hide drawer toggle when printing */
         display: none;
     }
 }
