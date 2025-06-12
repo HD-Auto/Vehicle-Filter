@@ -1,13 +1,12 @@
 /* Vehicle Filter Container */
 .vehicle-filter-container {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     padding: 25px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
     position: relative;
     overflow: hidden;
-    border-radius: 10px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     min-height: 50px;
+    justify-content: center;
 }
 
 /* Initial state: Hide the dropdown form by default to prevent FOUC */
@@ -74,12 +73,13 @@
 .filter-group select {
     width: 100%;
     padding: 12px 16px;
-    border: 2px solid #e9ecef;
+    border: 2px solid;
+    border-color: #4a5568;
     border-radius: 8px;
-    background-color: #fff;
+    background-color: #2d3748;
     font-size: 1em;
     font-weight: 500;
-    color: #495057;
+    color: #e2e8f0;
     transition: all 0.3s ease;
     appearance: none;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
@@ -107,8 +107,8 @@
 }
 
 .filter-group select:disabled {
-    background-color: #f8f9fa;
-    color: #6c757d;
+    background-color: #1a202c;
+    color: #718096;
     cursor: not-allowed;
     opacity: 0.7;
     transform: none;
@@ -227,14 +227,21 @@
     border-radius: 10px;
 }
 /* Hide content when loading to prevent flicker */
+.vehicle-filter-container.vfd-loading #vfd-display-vehicle-container,
 .vehicle-filter-container.vfd-loading #vehicle-filter-form,
 .vehicle-filter-container.vfd-loading #vfd-display-vehicle-info,
-.vehicle-filter-container.vfd-loading #vfd-drawer-toggle { /* Also hide toggle during loading */
+.vehicle-filter-container.vfd-loading #vfd-drawer-toggle {
     visibility: hidden;
 }
 
-
 /* --- New Styles for Display Vehicle Info --- */
+#vfd-display-vehicle-container {
+    display: none;
+    justify-content: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
 #vfd-display-vehicle-info {
     display: none; /* Hidden by default, JS will show */
     padding: 15px 20px;
@@ -248,10 +255,10 @@
     font-size: 1.1em;
     font-weight: 500;
     color: #2e7d32;
+    justify-content: center;
 }
 
 #vfd-display-vehicle-info .vfd-info-text {
-    flex-grow: 1;
     line-height: 1.5;
 }
 
@@ -298,7 +305,6 @@
     box-shadow: 0 2px 8px rgba(76, 175, 80, 0.25);
 }
 
-
 /* --- Drawer Specific Styles --- */
 #vfd-drawer-toggle {
     display: none; /* Hidden by default, shown by JS on mobile */
@@ -338,10 +344,10 @@
 }
 
 #vfd-drawer-content {
-    display: none; /* Initially hidden */
+    display: none; /* Initially hidden. JS slideToggle will manage. */
     overflow: hidden; /* Critical for slideToggle to work */
-    box-sizing: border-box; /* Good practice */
-    padding: 0; /* JS will add padding if needed */
+    box-sizing: border-box; /* Good practice for padding calculations */
+    padding: 0 25px; /* Adjust as needed for spacing when open */
 }
 
 #vfd-drawer-content.open {
@@ -349,7 +355,6 @@
     padding-top: 20px; /* Add padding when open */
     padding-bottom: 5px; /* Add padding when open */
 }
-
 
 /* Responsive Design */
 /* Specific overrides for desktop layout in media query */
@@ -359,15 +364,15 @@
     }
 
     #vfd-drawer-content {
-        display: block !important; /* Ensure content is visible on desktop, not hidden by slideToggle */
-        height: auto !important; /* Reset height */
-        max-height: none !important; /* Ensure it's fully open */
-        padding: 0 !important; /* No padding from drawer content, let vehicle-filter-container handle it */
-        overflow: visible !important; /* Allow content to overflow */
+        display: block !important; /* Ensure content is visible on desktop */
+        height: auto !important;
+        max-height: none !important;
+        padding: 0 !important;
+        overflow: visible !important;
     }
 
     .vehicle-filter-form {
-        display: flex !important; /* Ensure it's flex on large screens */
+        display: flex !important;
         flex-direction: row;
         align-items: flex-end;
         justify-content: flex-start;
@@ -396,13 +401,13 @@
     }
 
     #vfd-drawer-content {
-        /* On mobile, this will be controlled by JS for open/close */
-        /* It defaults to max-height: 0 unless .open is added */
+        margin-top: 1.5em !important;
     }
 
     .vehicle-filter-form {
         flex-direction: column; /* Stack vertically on smaller screens */
         align-items: stretch;
+        width: 100% !important;
         gap: 15px;
     }
 
@@ -419,8 +424,8 @@
         margin-left: 0; /* Reset margin */
     }
 
-    /* Adjust padding for dropdown form on mobile, now that drawer content has padding */
     .vehicle-filter-form .filter-group {
+        width: 100% !important;
         padding-left: 0;
         padding-right: 0;
     }
@@ -439,6 +444,13 @@
         width: 100%;
         min-width: auto;
     }
+
+    /* Stretch selects and buttons to fill */
+    .vehicle-filter-form select,
+    .vehicle-filter-form button {
+        width: 100% !important;
+        box-sizing: border-box;
+    }
 }
 
 @media (max-width: 768px) {
@@ -454,11 +466,6 @@
     .filter-group button {
         width: 100%;
         min-width: auto;
-    }
-
-    .filter-group label {
-        font-size: 0.85em;
-        margin-bottom: 6px;
     }
 
     .filter-group select {
@@ -569,12 +576,6 @@
 
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
-    .vehicle-filter-container {
-        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-        color: #e2e8f0;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    }
-
     .filter-group label {
         color: #e2e8f0;
     }

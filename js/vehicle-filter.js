@@ -1,380 +1,305 @@
-(function($) {
-	$(document).ready(function() {
-		const log = (message, ...args) => {
-			const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-			console.log(`[${timestamp}] VFD-DEBUG: ${message}`, ...args);
-		};
-		log('jQuery document ready. Script started.');
+;(function($) {
+	$(function() {
+		const $dropdownWrapper    		= $('#vfd-dropdown-wrapper'),
+			$displayVehicleInfo 		= $('#vfd-display-vehicle-info'),
+			$displayVehicleContainer 	= $('#vfd-display-vehicle-container'),
+			$infoText           		= $displayVehicleInfo.find('.vfd-info-text'),
+			$goToShop           		= $('#vfd-go-to-shop-button'),
+			$make               		= $('#vfd-make'),
+			$model              		= $('#vfd-model'),
+			$year               		= $('#vfd-year'),
+			$submit             		= $('#vfd-submit-button'),
+			$resetForm          		= $('#vfd-reset-button'),
+			$resetDisplay       		= $('#vfd-reset-display-button'),
+			$drawerToggle       		= $('#vfd-drawer-toggle'),
+			$drawerContent      		= $('#vfd-drawer-content'),
+			$form          	  		= $('#vehicle-filter-form'),
+			shopUrl             		= vfd_ajax_object.shop_url,
+			AJAX_URL            		= vfd_ajax_object.ajax_url,
+			NONCE               		= vfd_ajax_object.nonce,
+			SESSION_KEY         		= 'vfd_selected_filters';
 
-		const vehicleFilterContainer = $('#vehicle-filter-container');
-		const makeSelect = $('#vfd-make');
-		const modelSelect = $('#vfd-model');
-		const yearSelect = $('#vfd-year');
-		const submitButton = $('#vfd-submit-button');
-		const resetButton = $('#vfd-reset-button');
-		const form = $('#vehicle-filter-form');
+		function log() {
+			const ts = new Date()
+				.toLocaleTimeString('en-US', {
+					hour12:   false,
+					hour:     '2-digit',
+					minute:   '2-digit',
+					second:   '2-digit',
+					fractionalSecondDigits: 3
+				});
+			console.log(`[${ts}] VFD:`, ...arguments);
+		}
 
-		const displayVehicleInfoContainer = $('#vfd-display-vehicle-info');
-		const displayVehicleInfoText = displayVehicleInfoContainer.find('.vfd-info-text');
-		const resetDisplayButton = $('#vfd-reset-display-button');
-		const goToShopButton = $('#vfd-go-to-shop-button');
+		// Breakpoint test
+		function isMobileLayout() {
+			return window.matchMedia('(max-width:1024px)').matches;
+		}
 
-		const drawerToggle = $('#vfd-drawer-toggle');
-		const drawerContent = $('#vfd-drawer-content');
-		const drawerToggleText = drawerToggle.find('.vfd-toggle-text');
-
-		const shopUrl = vfd_ajax_object.shop_url;
-		const SESSION_STORAGE_KEY = 'vfd_selected_filters';
-
-		// --- Helper Functions ---
-		function saveFiltersToSession(filters) {
-			if (filters && filters.make && filters.makeName && filters.model && filters.modelName && filters.year && filters.yearName) {
-				sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(filters));
-				log('Filters saved to session storage:', filters);
+		/* Save to sessionStorage */
+		function saveFilters(f) {
+			if (
+				f && f.make && f.makeName &&
+				f.model && f.modelName &&
+				f.year  && f.yearName
+			) {
+				sessionStorage.setItem(SESSION_KEY, JSON.stringify(f));
+				log('Saved filters →', f);
 			} else {
-				clearFiltersFromSession();
-				log('Incomplete/Invalid filters provided to saveFiltersToSession. Session storage cleared.', filters);
+				sessionStorage.removeItem(SESSION_KEY);
+				log('Cleared session (invalid filters):', f);
 			}
 		}
 
-		function loadFiltersFromSession() {
-			const storedFilters = sessionStorage.getItem(SESSION_STORAGE_KEY);
-			if (storedFilters) {
-				try {
-					const parsed = JSON.parse(storedFilters);
-					if (parsed && parsed.make && parsed.makeName && parsed.model && parsed.modelName && parsed.year && parsed.yearName) {
-						log('Filters loaded from session storage and are complete:', parsed);
-						return parsed;
-					} else {
-						log('Stored filters found but incomplete or invalid. Clearing session.', parsed);
-						clearFiltersFromSession();
-						return null;
-					}
-				} catch (e) {
-					log('Error parsing session storage data. Clearing session.', e);
-					clearFiltersFromSession();
-					return null;
+		/* Load from sessionStorage */
+		function loadFilters() {
+			const raw = sessionStorage.getItem(SESSION_KEY);
+			if (!raw) return null;
+			try {
+				const o = JSON.parse(raw);
+				if (
+					o.make && o.makeName &&
+					o.model && o.modelName &&
+					o.year  && o.yearName
+				) {
+					log('Loaded filters from session →', o);
+					return o;
 				}
+			} catch (e) {
+				log('Error parsing saved filters:', e);
 			}
-			log('No filters found in session storage.');
+			sessionStorage.removeItem(SESSION_KEY);
 			return null;
 		}
 
-		function clearFiltersFromSession() {
-			sessionStorage.removeItem(SESSION_STORAGE_KEY);
-			log('Session storage cleared.');
-		}
-
-		function toggleSubmitButton(areFiltersComplete) {
-			if (areFiltersComplete) {
-				submitButton.prop('disabled', false).removeClass('disabled').text('Set Vehicle');
-			} else {
-				submitButton.prop('disabled', true).addClass('disabled').text('Select Vehicle');
-			}
-			log('Submit button state updated. Disabled:', submitButton.prop('disabled'), 'Text:', submitButton.text());
-		}
-
-		function setLoadingState(element, isLoading, loadingText) {
-			if (isLoading) {
-				element.data('original-html', element.html()).prop('disabled', true).attr('data-loading', 'true');
-				element.html('<option value="">' + loadingText + '</option>');
-				log(`Setting loading state for ${element.attr('id')}: ${loadingText}`);
-			} else {
-				if (element.data('original-html')) {
-					element.html(element.data('original-html'));
-					element.removeData('original-html');
+		/* Fetch names via AJAX */
+		function fetchTermNames(makeId, modelId, yearId) {
+			return $.post({
+				url:  AJAX_URL,
+				data: {
+					action:   'vfd_get_term_names',
+					make_id:  makeId,
+					model_id: modelId,
+					year_id:  yearId,
+					nonce:    NONCE
 				}
-				element.prop('disabled', false).removeAttr('data-loading');
-				log(`Removing loading state for ${element.attr('id')}.`);
-			}
-		}
-
-		async function getTermNames(makeId, modelId, yearId) {
-			log('Fetching term names for IDs:', { makeId, modelId, yearId });
-			try {
-				const response = await $.ajax({
-					url: vfd_ajax_object.ajax_url,
-					type: 'POST',
-					data: {
-						action: 'vfd_get_term_names',
-						make_id: makeId,
-						model_id: modelId,
-						year_id: yearId,
-						nonce: vfd_ajax_object.nonce
-					}
-				});
-
-				if (response.success && response.data) {
-					if (response.data.makeName && response.data.modelName && response.data.yearName) {
-						log('Term names fetched successfully and are complete:', response.data);
-						return response.data;
-					} else {
-						log('AJAX returned incomplete names. Rejecting data.', response.data);
-						return null;
-					}
-				} else {
-					log('Failed to fetch term names:', response);
-					return null;
+			}).then(res => {
+				if (res.success && res.data.makeName) {
+					return res.data;
 				}
-			} catch (error) {
-				log('AJAX error fetching term names:', error);
-				return null;
-			}
+				return $.Deferred().reject(res);
+			});
 		}
 
-		// --- UI State Management ---
-
-		function isMobileLayout() {
-			return window.matchMedia("(max-width: 1024px)").matches;
-		}
-
-		/**
-		 * Shows the dropdown form and hides the display info.
-		 * Resets dropdowns to initial "Select Make" state.
-		 * Handles drawer state based on mobile layout.
-		 */
+		/* Show the dropdown form, hide “My Vehicle” panel */
 		function showDropdownForm() {
-			log('showDropdownForm() called. Displaying dropdowns (and handling drawer).');
-			displayVehicleInfoContainer.hide(); // Always hide display info
+			log('showDropdownForm()');
+			$displayVehicleContainer.hide();
+			$displayVehicleInfo.hide();
+			$dropdownWrapper.show();
 
-			const mobile = isMobileLayout();
+			// Reset selects & submit
+			$make.val('');
+			$model
+				.html('<option value="">Select Make First</option>')
+				.prop('disabled', true);
+			$year
+				.html('<option value="">Select Model First</option>')
+				.prop('disabled', true);
+			$submit.prop('disabled', true).text('Filter Products');
 
-			if (mobile) {
-				drawerToggle.show(); // Show mobile toggle
-				drawerToggle.removeClass('active'); // Ensure drawer is closed visually
-				drawerContent.hide(); // Hide content (jQuery slideToggle will handle height animation from here)
-				form.hide(); // Keep form hidden inside the drawer (will be shown on slideToggle complete)
-				drawerToggleText.text('Select Vehicle'); // Set toggle text
+			// Mobile vs Desktop toggling
+			if (isMobileLayout()) {
+				$drawerToggle.show().removeClass('active');
+				$drawerContent.hide();
 			} else {
-				drawerToggle.hide(); // Hide mobile toggle
-				drawerContent.show(); // Ensure content is visible on desktop (no max-height)
-				form.css('display', 'flex'); // Show form directly on desktop
+				$drawerToggle.hide();
+				$drawerContent.show();
 			}
-
-			// Reset dropdowns to default "Select Make" state
-			makeSelect.val('');
-			modelSelect.val('').prop('disabled', true).html('<option value="">Select Make First</option>');
-			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
-			toggleSubmitButton(false);
 		}
 
-		/**
-		 * Hides the dropdown form and displays the selected vehicle info.
-		 * Also populates the dropdowns in the background, in case user clicks Reset.
-		 * Handles drawer state based on mobile layout.
-		 * @param {object} filters - Object with make, model, year IDs and names.
-		 */
-		function showDisplayVehicleInfo(filters) {
-			if (!filters || !filters.makeName || !filters.modelName || !filters.yearName) {
-				log('Invalid filters for showDisplayVehicleInfo. Falling back to dropdowns.', filters);
-				showDropdownForm(); // Fallback to dropdowns
-				return;
+		/* Show “My Vehicle” panel, hide dropdown wrapper */
+		function showDisplay(f) {
+			log('showDisplay()', f);
+			if (!(f && f.makeName)) {
+				return showDropdownForm();
 			}
 
-			log('showDisplayVehicleInfo() called with filters:', filters);
+			$dropdownWrapper.hide();
 
-			form.hide(); // Hide the actual form
-			drawerContent.hide(); // Hide and collapse drawer content using .hide()
-			drawerToggle.hide(); // Hide the drawer toggle button as "My Vehicle" takes precedence
+			$infoText.html(
+				`My Vehicle: <strong>${f.makeName}</strong> ` +
+				`<strong>${f.modelName}</strong> ` +
+				`<strong>${f.yearName}</strong>`
+			);
 
-			displayVehicleInfoContainer.css('display', 'flex'); // Ensure display info is flex for display
-			displayVehicleInfoText.html(`My Vehicle: <strong>${filters.makeName}</strong> <strong>${filters.modelName}</strong> <strong>${filters.yearName}</strong>`);
+			const url = new URL(shopUrl);
+			url.searchParams.set('filterMake',  f.make);
+			url.searchParams.set('filterModel', f.model);
+			url.searchParams.set('filterYear',  f.year);
+			$goToShop.attr('href', url.toString());
 
-			const currentFilteredShopUrl = new URL(shopUrl);
-			currentFilteredShopUrl.searchParams.set('filterMake', filters.make);
-			currentFilteredShopUrl.searchParams.set('filterModel', filters.model);
-			currentFilteredShopUrl.searchParams.set('filterYear', filters.year);
-			goToShopButton.attr('href', currentFilteredShopUrl.toString());
-			log('"Go to Shop" button href set to:', goToShopButton.attr('href'));
-
-			// Background populate dropdowns, in case user clicks Reset later
-			makeSelect.val(filters.make);
-			setTimeout(() => {
-				makeSelect.trigger('change', [true]);
-				setTimeout(() => {
-					modelSelect.val(filters.model);
-					modelSelect.trigger('change', [true]);
-					setTimeout(() => {
-						yearSelect.val(filters.year);
-					}, 50);
-				}, 50);
-			}, 50);
+			$displayVehicleInfo.css('display', 'flex').show();
+			$displayVehicleContainer.css('display', 'flex').show();
 		}
 
-		// --- Initialization Logic ---
-		async function initializeUI() {
-			log('initializeUI() starting.');
-			vehicleFilterContainer.addClass('vfd-loading');
+		/* Initialize on page load */
+		async function initialize() {
+			log('initialize()');
+			const params = new URL(window.location.href).searchParams;
+			const m1 = params.get('filterMake'),
+				m2 = params.get('filterModel'),
+				y  = params.get('filterYear');
+			let chosen = null;
 
-			const storedFilters = loadFiltersFromSession();
-			const currentUrl = new URL(window.location.href);
-
-			const urlMake = currentUrl.searchParams.get('filterMake');
-			const urlModel = currentUrl.searchParams.get('filterModel');
-			const urlYear = currentUrl.searchParams.get('filterYear');
-
-			log('Current URL filters on init:', { urlMake, urlModel, urlYear });
-			log('Stored session filters on init (re-read for final check):', storedFilters);
-
-			let filtersToActivate = null;
-
-			// PRIORITY 1: Check if there are active filters in the URL.
-			if (urlMake && urlModel && urlYear) {
-				log('Init Priority 1: Filters found in URL. Fetching names for storage and display.');
-				const names = await getTermNames(urlMake, urlModel, urlYear);
-				if (names) {
-					filtersToActivate = { make: urlMake, model: urlModel, year: urlYear, ...names };
-					log('Successfully fetched names for URL filters. Filters to activate:', filtersToActivate);
-				} else {
-					log('Could not fetch names for URL filters. Clearing session as unable to form complete filter object.');
-					clearFiltersFromSession();
+			if (m1 && m2 && y) {
+				try {
+					const names = await fetchTermNames(m1, m2, y);
+					chosen = {
+						make: m1,
+						model: m2,
+						year: y,
+						makeName:  names.makeName,
+						modelName: names.modelName,
+						yearName:  names.yearName
+					};
+					saveFilters(chosen);
+				} catch (err) {
+					log('Invalid URL filters → clear session');
+					sessionStorage.removeItem(SESSION_KEY);
 				}
 			}
-			// PRIORITY 2: If no URL filters, check if complete filters exist in session storage.
-			else if (storedFilters) {
-				log('Init Priority 2: Complete filters found in session storage (no URL filters).');
-				filtersToActivate = storedFilters;
-			} else {
-				log('Init Priority 3: No complete filters found in URL or session storage.');
+
+			if (!chosen) {
+				chosen = loadFilters();
 			}
 
-			if (filtersToActivate) {
-				log('Activating UI for filters:', filtersToActivate);
-				showDisplayVehicleInfo(filtersToActivate);
-				saveFiltersToSession(filtersToActivate);
+			if (chosen) {
+				showDisplay(chosen);
 			} else {
-				log('No active filters found to activate. Showing dropdown form.');
 				showDropdownForm();
 			}
-
-			vehicleFilterContainer.removeClass('vfd-loading');
-			log('UI initialization complete. Removed loading class.');
 		}
 
-		// --- Event Listeners ---
-		makeSelect.on('change', function(event, skipAjax) {
-			log('Make dropdown changed. skipAjax:', skipAjax);
-			const makeId = $(this).val();
-			modelSelect.val('').prop('disabled', true).html('<option value="">Select Make First</option>');
-			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
-			toggleSubmitButton(false);
+		// --- EVENTS ---
 
-			if (!makeId || skipAjax) {
-				log('Skipping AJAX for make change due to no ID or skipAjax flag.');
-				return;
-			}
+		$make.on('change', function() {
+			const id = $(this).val();
+			$model.html('<option>Loading…</option>').prop('disabled', true);
+			$year.html('<option>Select Model First</option>').prop('disabled', true);
+			$submit.prop('disabled', true);
 
-			setLoadingState(modelSelect, true, 'Loading Models...');
-			$.ajax({
-				url: vfd_ajax_object.ajax_url, type: 'POST',
-				data: { action: 'vfd_get_child_terms', parent_id: makeId, nonce: vfd_ajax_object.nonce },
-				success: function(response) { log('Models AJAX success.'); setLoadingState(modelSelect, false); if (response.success && response.data) { modelSelect.html('<option value="">Select Model</option>'); if (response.data.length > 0) { $.each(response.data, function(i, term) { modelSelect.append($('<option>', { value: term.term_id, text: term.name })); }); modelSelect.prop('disabled', false); } else { modelSelect.html('<option value="">No Models Available</option>'); } } else { log('Models error:', response); modelSelect.html('<option value="">Error Loading Models</option>'); } },
-				error: function(xhr, status, error) { log('AJAX Error loading models:', { xhr, status, error }); setLoadingState(modelSelect, false); modelSelect.html('<option value="">Error Loading Models</option>'); }
-			});
-		});
+			if (!id) return;
 
-		modelSelect.on('change', function(event, skipAjax) {
-			log('Model dropdown changed. skipAjax:', skipAjax);
-			const modelId = $(this).val();
-			yearSelect.val('').prop('disabled', true).html('<option value="">Select Model First</option>');
-			toggleSubmitButton(false);
-
-			if (!modelId || skipAjax) {
-				log('Skipping AJAX for model change due to no ID or skipAjax flag.');
-				return;
-			}
-
-			setLoadingState(yearSelect, true, 'Loading Years...');
-			$.ajax({
-				url: vfd_ajax_object.ajax_url, type: 'POST',
-				data: { action: 'vfd_get_year_terms', model_id: modelId, nonce: vfd_ajax_object.nonce },
-				success: function(response) { log('Years AJAX success.'); setLoadingState(yearSelect, false); if (response.success && response.data) { yearSelect.html('<option value="">Select Year</option>'); if (response.data.length > 0) { response.data.sort((a, b) => parseInt(b.name) - parseInt(a.name)); $.each(response.data, function(i, term) { yearSelect.append($('<option>', { value: term.term_id, text: term.name })); }); yearSelect.prop('disabled', false); } else { yearSelect.html('<option value="">No Years Available</option>'); } } else { log('Years error:', response); yearSelect.html('<option value="">Error Loading Years</option>'); } },
-				error: function(xhr, status, error) { log('AJAX Error loading years:', { xhr, status, error }); setLoadingState(modelSelect, false); modelSelect.html('<option value="">Error Loading Models</option>'); }
-			});
-		});
-
-		yearSelect.on('change', function() {
-			log('Year dropdown changed.');
-			const areFiltersComplete = makeSelect.val() && modelSelect.val() && yearSelect.val();
-			toggleSubmitButton(areFiltersComplete);
-		});
-
-		form.on('submit', async function(e) {
-			e.preventDefault();
-			log('Form submit initiated (Set Vehicle).');
-
-			const makeValue = makeSelect.val();
-			const modelValue = modelSelect.val();
-			const yearValue = yearSelect.val();
-
-			if (!makeValue || !modelValue || !yearValue) {
-				alert('Please select Make, Model, and Year before setting vehicle.');
-				log('Form submission blocked due to incomplete selection.');
-				return false;
-			}
-
-			submitButton.prop('disabled', true).text('Setting...');
-
-			const names = await getTermNames(makeValue, modelValue, yearValue);
-
-			if (names) {
-				const selectedFilters = {
-					make: makeValue, model: modelValue, year: yearValue,
-					makeName: names.makeName, modelName: names.modelName, yearName: names.yearName
-				};
-				log('Attempting to save selectedFilters after submit:', selectedFilters);
-				saveFiltersToSession(selectedFilters);
-				log('saveFiltersToSession call returned after submit.');
-
-				log('Vehicle set and saved to session storage. Switching UI to display.');
-				showDisplayVehicleInfo(selectedFilters);
-			} else {
-				log('Failed to get names for selected vehicle. Vehicle not set. Re-enabling submit button.');
-				submitButton.prop('disabled', false).text('Error! Try Again.');
-			}
-		});
-
-		resetButton.on('click', function(e) {
-			e.preventDefault();
-			log('Dropdown form Reset button clicked. Clearing filters and showing dropdown form.');
-			clearFiltersFromSession();
-			showDropdownForm();
-		});
-
-		resetDisplayButton.on('click', function() {
-			log('Display info Reset button clicked. Clearing filters and showing dropdown form.');
-			clearFiltersFromSession();
-			showDropdownForm();
-		});
-
-		// --- Drawer Toggle Event Listener ---
-		drawerToggle.on('click', function() {
-			log('Drawer toggle clicked. Current state:', drawerToggle.hasClass('active') ? 'open' : 'closed');
-			drawerToggle.toggleClass('active'); // Rotate icon
-			drawerContent.slideToggle(300, function() {
-				// Callback after slideToggle completes
-				if (drawerContent.is(':visible')) {
-					log('Drawer content is now visible. Ensuring form is flex.');
-					form.css('display', 'flex'); // Ensure inner form is flex when drawer is open
+			$.post({
+				url: AJAX_URL,
+				data: { action: 'vfd_get_child_terms', parent_id: id, nonce: NONCE }
+			}).then(res => {
+				if (res.success && res.data.length) {
+					$model.html('<option value="">Select Model</option>');
+					res.data.forEach(t => {
+						$model.append(
+							$('<option>', { value: t.term_id, text: t.name })
+						);
+					});
+					$model.prop('disabled', false);
 				} else {
-					log('Drawer content is now hidden. Hiding form.');
-					form.hide(); // Ensure inner form is hidden when drawer is closed
+					$model.html('<option>No Models Found</option>');
 				}
 			});
 		});
 
-		// --- Handle window resize to adjust UI based on breakpoint ---
-		let resizeTimeout;
-		$(window).on('resize', function() {
-			clearTimeout(resizeTimeout);
-			resizeTimeout = setTimeout(function() {
-				log('Window resized. Re-evaluating UI based on layout.');
-				initializeUI(); // Re-run init to adjust desktop/mobile layout
-			}, 250);
+		$model.on('change', function() {
+			const id = $(this).val();
+			$year.html('<option>Loading…</option>').prop('disabled', true);
+			$submit.prop('disabled', true);
+
+			if (!id) return;
+
+			$.post({
+				url: AJAX_URL,
+				data: { action: 'vfd_get_year_terms', model_id: id, nonce: NONCE }
+			}).then(res => {
+				if (res.success && res.data.length) {
+					res.data.sort((a,b) => parseInt(b.name) - parseInt(a.name));
+					$year.html('<option value="">Select Year</option>');
+					res.data.forEach(t => {
+						$year.append(
+							$('<option>', { value: t.term_id, text: t.name })
+						);
+					});
+					$year.prop('disabled', false);
+				} else {
+					$year.html('<option>No Years Found</option>');
+				}
+			});
 		});
 
-		// Initial setup on page load
-		log('Document ready. Calling initializeUI().');
-		initializeUI();
+		$year.on('change', function() {
+			$submit.prop('disabled', !$(this).val());
+		});
+
+		$('#vehicle-filter-form').on('submit', async function(e) {
+			e.preventDefault();
+			const make  = $make.val(),
+				model = $model.val(),
+				year  = $year.val();
+			if (!(make && model && year)) {
+				return alert('Please select Make, Model, and Year.');
+			}
+			$submit.prop('disabled', true).text('Setting…');
+			try {
+				const names = await fetchTermNames(make, model, year);
+				const f     = {
+					make, model, year,
+					makeName:  names.makeName,
+					modelName: names.modelName,
+					yearName:  names.yearName
+				};
+				saveFilters(f);
+				showDisplay(f);
+			} catch (err) {
+				log('Error setting vehicle:', err);
+				$submit.prop('disabled', false).text('Error – Try Again');
+			}
+		});
+
+		$resetForm.on('click', function() {
+			sessionStorage.removeItem(SESSION_KEY);
+			showDropdownForm();
+		});
+
+		$resetDisplay.on('click', function() {
+			sessionStorage.removeItem(SESSION_KEY);
+			showDropdownForm();
+		});
+
+		// DRAWER TOGGLE (mobile)
+		$drawerToggle.on('click', function() {
+			log('Drawer toggle clicked. open?', $drawerToggle.hasClass('active'));
+			$drawerToggle.toggleClass('active');
+
+			if ( $drawerContent.is(':visible') ) {
+				// close it
+				$drawerContent.slideUp(200, function(){
+					log('Drawer closed');
+				});
+			} else {
+				// open it, then force flex
+				$drawerContent.slideDown(200, function(){
+					$drawerContent.css('display','flex');
+					$form.css('display','flex');
+					log('Drawer opened – display:flex restored');
+				});
+			}
+		});
+
+		$(window).on('resize', function() {
+			clearTimeout(this._vfdTO);
+			this._vfdTO = setTimeout(initialize, 250);
+		});
+
+		// first run
+		initialize();
 	});
 })(jQuery);
