@@ -237,6 +237,7 @@
 /* --- New Styles for Display Vehicle Info --- */
 #vfd-display-vehicle-container {
     display: none;
+    position: relative;
     justify-content: center;
     padding-top: 10px;
     padding-bottom: 10px;
@@ -244,6 +245,7 @@
 
 #vfd-display-vehicle-info {
     display: none; /* Hidden by default, JS will show */
+    position: inherit;
     padding: 15px 20px;
     border: 2px solid #81c784;
     background-color: #e8f5e9;
@@ -255,7 +257,6 @@
     font-size: 1.1em;
     font-weight: 500;
     color: #2e7d32;
-    justify-content: center;
 }
 
 #vfd-display-vehicle-info .vfd-info-text {
@@ -431,13 +432,33 @@
     }
 
     #vfd-display-vehicle-info {
-        flex-direction: column;
-        align-items: stretch;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        flex-wrap: nowrap;
     }
 
+    /* 2) Keep the “My Vehicle:” text inline and remove bottom margin */
     #vfd-display-vehicle-info .vfd-info-text {
-        text-align: center;
-        margin-bottom: 10px;
+        flex: none !important;
+        margin: 0 !important;
+        margin-right: 0.5em !important;
+    }
+
+    #vfd-go-to-shop-button {
+        display: none !important;
+    }
+
+    /* show Reset inline, slightly smaller */
+    #vfd-reset-display-button {
+        display: inline-block !important;
+        vertical-align: middle !important;
+        margin-left: 0.5em !important;
+        padding: 6px 12px !important;    /* reduced from desktop */
+        font-size: 0.9em !important;      /* slightly smaller */
+        line-height: 1 !important;
+        min-width: auto !important;       /* let it size to its content */
     }
 
     .vfd-button-small {
@@ -451,6 +472,7 @@
         width: 100% !important;
         box-sizing: border-box;
     }
+
 }
 
 @media (max-width: 768px) {

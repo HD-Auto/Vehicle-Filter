@@ -197,7 +197,7 @@ function vfd_display_dropdowns_shortcode() {
                                 || empty( $selected_year )
                             ) ? 'disabled' : ''; ?>
                         >
-                            Filter Products
+                            Set
                         </button>
                         <button type="button" id="vfd-reset-button">Reset</button>
                     </div>

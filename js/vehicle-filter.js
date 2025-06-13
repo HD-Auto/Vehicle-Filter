@@ -106,7 +106,7 @@
 			$year
 				.html('<option value="">Select Model First</option>')
 				.prop('disabled', true);
-			$submit.prop('disabled', true).text('Filter Products');
+			$submit.prop('disabled', true).text('Set');
 
 			// Mobile vs Desktop toggling
 			if (isMobileLayout()) {
