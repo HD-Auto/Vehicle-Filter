@@ -10,6 +10,6 @@ you can add this to your wordpress site anywhere using the shortcode;
 
 This plugin requires ACF (Advanced Custom Fields) to be installed and activated on your site.
 
-This plugin is configured to use the custom Taxonomy vehicle and model_year to fetch the related items.
+This plugin is configured to use the custom Taxonomy vehicle, model_year and body_type to fetch the related items.
 
 You can change the taxonomy names by editing the plugin file.

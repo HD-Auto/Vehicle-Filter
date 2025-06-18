@@ -4,7 +4,7 @@
  * Plugin URI:        https://hdautomotive.com.au
  * Description:       Adds a shortcode [vehicle_filter_dropdowns] to display cascading dropdowns
  *                    for the 'vehicles' custom taxonomy.
- * Version:           2.2.1
+ * Version:           2.2.2
  * Author:            Brodie Owens
  * Author URI:        https://hdautomotive.com.au/
  * License:           GPL v2 or later
@@ -20,6 +20,7 @@ if ( ! defined( 'WPINC' ) ) {
 // Taxonomy slugs.
 define( 'VFD_TAXONOMY',  'vehicle' );
 define( 'YEAR_TAXONOMY', 'model_year' );
+define( 'BODY_TAXONOMY', 'body_type' );
 
 // Define the shop URL once WooCommerce is loaded.
 add_action( 'init', 'vfd_define_shop_url' );
@@ -63,6 +64,9 @@ function vfd_display_dropdowns_shortcode() {
     $selected_year  = isset( $_GET['filterYear'] )
         ? intval( $_GET['filterYear'] )
         : '';
+	$selected_body  = isset( $_GET['filterBody'] )
+		? intval( $_GET['filterBody'] )
+		: '';
     $shop_url       = defined( 'VFD_SHOP_URL' )
         ? VFD_SHOP_URL
         : home_url( '/shop/' );
@@ -187,6 +191,61 @@ function vfd_display_dropdowns_shortcode() {
                         </select>
                     </div>
 
+                    <div class="filter-group">
+                        <select
+                                name="filterBody"
+                                id="vfd-body"
+			                <?php echo empty( $selected_year ) ? 'disabled' : ''; ?>
+                        >
+                            <option value="">Select Year First</option>
+			                <?php
+			                if ( $selected_year ) {
+				                $post_ids = get_posts( [
+					                'post_type'      => 'product',
+					                'posts_per_page' => -1,
+					                'fields'         => 'ids',
+					                'tax_query'      => [
+						                [
+							                'taxonomy' => VFD_TAXONOMY,
+							                'field'    => 'term_id',
+							                'terms'    => $selected_model,
+						                ],
+                                        [
+                                            'taxonomy' => YEAR_TAXONOMY,
+                                            'field'    => 'term_id',
+                                            'terms'    => $selected_year,
+                                        ],
+					                ],
+				                ] );
+				                if ( $post_ids ) {
+					                $body_terms = wp_get_object_terms(
+						                $post_ids,
+						                BODY_TAXONOMY,
+						                [ 'orderby' => 'name', 'order' => 'DESC' ]
+					                );
+					                if ( ! is_wp_error( $body_terms ) && ! empty( $body_terms ) ) {
+						                echo '<option value="">Select Year</option>';
+						                $uniq = [];
+						                foreach ( $body_terms as $y ) {
+							                if ( ! isset( $uniq[ $y->term_id ] ) ) {
+								                $uniq[ $y->term_id ] = $y;
+							                }
+						                }
+						                foreach ( $uniq as $y ) {
+							                printf(
+								                '<option value="%1$d" %2$s>%3$s</option>',
+								                esc_attr( $y->term_id ),
+								                selected( $selected_body, $y->term_id, false ),
+								                esc_html( $y->name )
+							                );
+						                }
+					                }
+				                }
+			                }
+			                ?>
+                        </select>
+                    </div>
+
                     <div class="filter-group filter-buttons">
                         <button
                                 type="submit"
@@ -195,6 +254,7 @@ function vfd_display_dropdowns_shortcode() {
                                 empty( $selected_make )
                                 || empty( $selected_model )
                                 || empty( $selected_year )
+                                || empty( $selected_body )
                             ) ? 'disabled' : ''; ?>
                         >
                             Set
@@ -272,6 +332,17 @@ function vfd_filter_woocommerce_products($query) {
         ];
         $modified = true;
     }
+
+	// Check for body filter
+	if (isset($_GET['filterBody']) && !empty($_GET['filterBody'])) {
+		$body_id = intval($_GET['filterBody']);
+		$tax_query[] = [
+			'taxonomy' =>BODY_TAXONOMY,
+			'field'    => 'term_id',
+			'terms'    => $body_id,
+		];
+		$modified = true;
+	}
 
     if ($modified && !empty($tax_query)) {
         if (count($tax_query) > 1) {
@@ -388,6 +459,62 @@ function vfd_get_year_terms_callback() {
 }
 
 /**
+ * AJAX Handler: Get available body types for a selected model and year.
+ */
+add_action('wp_ajax_vfd_get_body_terms', 'vfd_get_body_terms_callback');
+add_action('wp_ajax_nopriv_vfd_get_body_terms', 'vfd_get_body_terms_callback');
+function vfd_get_body_terms_callback() {
+	check_ajax_referer('vfd_filter_nonce', 'nonce'); // Uses check_ajax_referer for consistency
+	$model_term_id = isset($_POST['model_id']) ? intval($_POST['model_id']) : 0;
+    $year_term_id = isset($_POST['year_id']) ? intval($_POST['year_id']) : 0;
+	if ( ! $model_term_id || ! $year_term_id) {
+		wp_send_json_error( 'Missing model ID or year ID provided.' );
+	}
+
+	// Find products that have the selected model term.
+	$post_ids = get_posts([
+		'post_type'      => 'product',
+		'posts_per_page' => -1,
+		'fields'         => 'ids',
+		'tax_query'      => [
+                'relation' => 'AND',
+                [
+                    'taxonomy' => VFD_TAXONOMY,
+                    'field' => 'term_id',
+                    'terms' => $model_term_id
+                ],
+                [
+                    'taxonomy' => YEAR_TAXONOMY,
+                    'field' => 'term_id',
+                    'terms' => $year_term_id
+                ],
+		],
+	]);
+
+	if (empty($post_ids)) {
+		wp_send_json_success([]); // No products found for this model, so no years
+		return;
+	}
+
+	// Get all 'model_year' terms associated with those products.
+	$body_terms = wp_get_object_terms($post_ids, BODY_TAXONOMY, ['orderby' => 'name', 'order' => 'ASC']);
+
+	if (is_wp_error($body_terms)) {
+        wp_send_json_error('Could not retrieve year terms.');
+	}
+
+	// Remove duplicates (wp_get_object_terms can return duplicates if a post has multiple terms)
+	$unique_bodys = [];
+	foreach ($body_terms as $term) {
+		if (!isset($unique_bodys[$term->term_id])) {
+			$unique_bodys[$term->term_id] = $term;
+		}
+	}
+
+	wp_send_json_success(array_values($unique_bodys)); // Return unique terms
+}
+
+/**
  * AJAX Handler: Get term names by their IDs.
  * New endpoint for fetching names when needed by JavaScript initialization.
  */
@@ -399,11 +526,13 @@ function vfd_get_term_names_callback() {
     $make_id = isset($_POST['make_id']) ? intval($_POST['make_id']) : 0;
     $model_id = isset($_POST['model_id']) ? intval($_POST['model_id']) : 0;
     $year_id = isset($_POST['year_id']) ? intval($_POST['year_id']) : 0;
+	$body_id = isset($_POST['body_id']) ? intval($_POST['body_id']) : 0;
 
     $response_data = [
         'makeName' => '',
         'modelName' => '',
         'yearName' => '',
+        'bodyName' => '',
     ];
 
     if ($make_id) {
@@ -419,14 +548,20 @@ function vfd_get_term_names_callback() {
         }
     }
     if ($year_id) {
-        $term = get_term($year_id, YEAR_TAXONOMY);
+	    $term = get_term( $year_id, YEAR_TAXONOMY );
+	    if ( $term && ! is_wp_error( $term ) ) {
+		    $response_data['yearName'] = $term->name;
+	    }
+    }
+    if ($body_id) {
+        $term = get_term($body_id, BODY_TAXONOMY);
         if ($term && !is_wp_error($term)) {
-            $response_data['yearName'] = $term->name;
+            $response_data['bodyName'] = $term->name;
         }
     }
 
     // Only send success if all three names were found, otherwise send error (or specific names if partially found)
-    if ( $response_data['makeName'] && $response_data['modelName'] && $response_data['yearName'] ) {
+    if ( $response_data['makeName'] && $response_data['modelName'] && $response_data['yearName'] && $response_data['bodyName'] ) {
         wp_send_json_success($response_data);
     } else {
         // Send error with partial data if some names couldn't be retrieved for debugging
@@ -448,5 +583,8 @@ function vfd_debug_info() {
         if (isset($_GET['filterYear'])) {
             echo '<!-- VFD: Year filter = ' . esc_html($_GET['filterYear']) . ' -->';
         }
+	    if (isset($_GET['filterBody'])) {
+		    echo '<!-- VFD: Body filter = ' . esc_html($_GET['filterBody']) . ' -->';
+	    }
     }
 }

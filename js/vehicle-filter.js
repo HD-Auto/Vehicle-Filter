@@ -8,6 +8,7 @@
 			$make               		= $('#vfd-make'),
 			$model              		= $('#vfd-model'),
 			$year               		= $('#vfd-year'),
+			$body               		= $('#vfd-body'),
 			$submit             		= $('#vfd-submit-button'),
 			$resetForm          		= $('#vfd-reset-button'),
 			$resetDisplay       		= $('#vfd-reset-display-button'),
@@ -41,7 +42,8 @@
 			if (
 				f && f.make && f.makeName &&
 				f.model && f.modelName &&
-				f.year  && f.yearName
+				f.year  && f.yearName &&
+				f.body && f.bodyName
 			) {
 				sessionStorage.setItem(SESSION_KEY, JSON.stringify(f));
 				log('Saved filters →', f);
@@ -60,7 +62,8 @@
 				if (
 					o.make && o.makeName &&
 					o.model && o.modelName &&
-					o.year  && o.yearName
+					o.year  && o.yearName &&
+					o.body && o.bodyName
 				) {
 					log('Loaded filters from session →', o);
 					return o;
@@ -73,7 +76,7 @@
 		}
 
 		/* Fetch names via AJAX */
-		function fetchTermNames(makeId, modelId, yearId) {
+		function fetchTermNames(makeId, modelId, yearId, bodyId) {
 			return $.post({
 				url:  AJAX_URL,
 				data: {
@@ -81,6 +84,7 @@
 					make_id:  makeId,
 					model_id: modelId,
 					year_id:  yearId,
+					body_id:  bodyId,
 					nonce:    NONCE
 				}
 			}).then(res => {
@@ -106,6 +110,9 @@
 			$year
 				.html('<option value="">Select Model First</option>')
 				.prop('disabled', true);
+			$body
+				.html('<option value="">Select Year First</option>')
+				.prop('disabled', true)
 			$submit.prop('disabled', true).text('Set');
 
 			// Mobile vs Desktop toggling
@@ -130,13 +137,15 @@
 			$infoText.html(
 				`My Vehicle: <strong>${f.makeName}</strong> ` +
 				`<strong>${f.modelName}</strong> ` +
-				`<strong>${f.yearName}</strong>`
+				`<strong>${f.yearName}</strong> ` +
+				`<strong>${f.bodyName}</strong>`
 			);
 
 			const url = new URL(shopUrl);
 			url.searchParams.set('filterMake',  f.make);
 			url.searchParams.set('filterModel', f.model);
 			url.searchParams.set('filterYear',  f.year);
+			url.searchParams.set('filterBody', f.body);
 			$goToShop.attr('href', url.toString());
 
 			$displayVehicleInfo.css('display', 'flex').show();
@@ -149,19 +158,22 @@
 			const params = new URL(window.location.href).searchParams;
 			const m1 = params.get('filterMake'),
 				m2 = params.get('filterModel'),
-				y  = params.get('filterYear');
+				y  = params.get('filterYear'),
+				b = params.get('filterBody');
 			let chosen = null;
 
-			if (m1 && m2 && y) {
+			if (m1 && m2 && y && b) {
 				try {
-					const names = await fetchTermNames(m1, m2, y);
+					const names = await fetchTermNames(m1, m2, y, b);
 					chosen = {
 						make: m1,
 						model: m2,
 						year: y,
+						body: b,
 						makeName:  names.makeName,
 						modelName: names.modelName,
-						yearName:  names.yearName
+						yearName:  names.yearName,
+						bodyName: names.bodyName
 					};
 					saveFilters(chosen);
 				} catch (err) {
@@ -187,6 +199,7 @@
 			const id = $(this).val();
 			$model.html('<option>Loading…</option>').prop('disabled', true);
 			$year.html('<option>Select Model First</option>').prop('disabled', true);
+			$body.html('<option>Select Year First</option>').prop('disabled', true);
 			$submit.prop('disabled', true);
 
 			if (!id) return;
@@ -235,7 +248,42 @@
 			});
 		});
 
-		$year.on('change', function() {
+		$year.on('change', function () {
+			const yearId = $(this).val();
+			const modelId = $model.val();
+
+			$body.html('<option>Loading...</option>').prop('disabled', true);
+			$submit.prop('disabled', true);
+
+			if (! yearId || ! modelId) {
+				$body.html('<option>Select Year First</option>');
+				return;
+			}
+
+			$.post({
+				url: AJAX_URL,
+				data: {
+					action: 'vfd_get_body_terms',
+					model_id: modelId,
+					year_id: yearId,
+					nonce: NONCE
+				}
+			}).then(res => {
+				if (res.success && res.data.length) {
+					let html = '<option value="">Select Body Type</option>';
+					res.data.forEach(t => {
+						html += `<option value="${t.term_id}">${t.name}</option>`;
+					});
+					$body.html(html).prop('disabled', false);
+				} else {
+					$body.html(
+						'<option value="">No Body Types Found</option>'
+					);
+				}
+			});
+		});
+
+		$body.on('change', function() {
 			$submit.prop('disabled', !$(this).val());
 		});
 
@@ -243,18 +291,20 @@
 			e.preventDefault();
 			const make  = $make.val(),
 				model = $model.val(),
-				year  = $year.val();
-			if (!(make && model && year)) {
-				return alert('Please select Make, Model, and Year.');
+				year  = $year.val(),
+				body = $body.val();
+			if (!(make && model && year && body)) {
+				return alert('Please select Make, Model, Year and Body.');
 			}
 			$submit.prop('disabled', true).text('Setting…');
 			try {
-				const names = await fetchTermNames(make, model, year);
+				const names = await fetchTermNames(make, model, year, body);
 				const f     = {
-					make, model, year,
+					make, model, year, body,
 					makeName:  names.makeName,
 					modelName: names.modelName,
-					yearName:  names.yearName
+					yearName:  names.yearName,
+					bodyName:  names.bodyName
 				};
 				saveFilters(f);
 				showDisplay(f);
