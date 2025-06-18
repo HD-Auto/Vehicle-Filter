@@ -4,7 +4,7 @@
  * Plugin URI:        https://hdautomotive.com.au
  * Description:       Adds a shortcode [vehicle_filter_dropdowns] to display cascading dropdowns
  *                    for the 'vehicles' custom taxonomy.
- * Version:           2.2.2
+ * Version:           2.2.3
  * Author:            Brodie Owens
  * Author URI:        https://hdautomotive.com.au/
  * License:           GPL v2 or later
@@ -67,6 +67,9 @@ function vfd_display_dropdowns_shortcode() {
 	$selected_body  = isset( $_GET['filterBody'] )
 		? intval( $_GET['filterBody'] )
 		: '';
+    $selected_driveline = isset( $_GET['filterDriveline'] )
+        ? intval( $_GET['filterDriveline'] )
+        : '';
     $shop_url       = defined( 'VFD_SHOP_URL' )
         ? VFD_SHOP_URL
         : home_url( '/shop/' );
@@ -246,6 +249,66 @@ function vfd_display_dropdowns_shortcode() {
                         </select>
                     </div>
 
+                    <div class="filter-group">
+                        <select
+                                name="filterDriveline"
+                                id="vfd-driveline"
+			                <?php echo empty( $selected_body ) ? 'disabled' : ''; ?>
+                        >
+                            <option value="">Select Body First</option>
+			                <?php
+			                if ( $selected_body && $selected_year && $selected_model ) {
+				                $post_ids = get_posts( [
+					                'post_type'      => 'product',
+					                'posts_per_page' => -1,
+					                'fields'         => 'ids',
+					                'tax_query'      => [
+						                [
+							                'taxonomy' => VFD_TAXONOMY,
+							                'field'    => 'term_id',
+							                'terms'    => $selected_model,
+						                ],
+						                [
+							                'taxonomy' => YEAR_TAXONOMY,
+							                'field'    => 'term_id',
+							                'terms'    => $selected_year,
+						                ],
+						                [
+							                'taxonomy' => BODY_TAXONOMY,
+							                'field'    => 'term_id',
+							                'terms'    => $selected_body,
+						                ],
+					                ],
+				                ] );
+				                if ( $post_ids ) {
+					                $drive_terms = wp_get_object_terms(
+						                $post_ids,
+						                VFD_TAXONOMY,
+						                [ 'orderby' => 'name', 'order' => 'DESC' ]
+					                );
+					                if ( ! is_wp_error( $drive_terms ) && ! empty( $drive_terms ) ) {
+						                echo '<option value="">Select Year</option>';
+						                $uniq = [];
+						                foreach ( $drive_terms as $y ) {
+							                if ( ! isset( $uniq[ $y->term_id ] ) ) {
+								                $uniq[ $y->term_id ] = $y;
+							                }
+						                }
+						                foreach ( $uniq as $y ) {
+							                printf(
+								                '<option value="%1$d" %2$s>%3$s</option>',
+								                esc_attr( $y->term_id ),
+								                selected( $selected_driveline, $y->term_id, false ),
+								                esc_html( $y->name )
+							                );
+						                }
+					                }
+				                }
+			                }
+			                ?>
+                        </select>
+                    </div>
+
                     <div class="filter-group filter-buttons">
                         <button
                                 type="submit"
@@ -335,13 +398,23 @@ function vfd_filter_woocommerce_products($query) {
 
 	// Check for body filter
 	if (isset($_GET['filterBody']) && !empty($_GET['filterBody'])) {
-		$body_id = intval($_GET['filterBody']);
+		$body_id     = intval( $_GET['filterBody'] );
 		$tax_query[] = [
-			'taxonomy' =>BODY_TAXONOMY,
+			'taxonomy' => BODY_TAXONOMY,
 			'field'    => 'term_id',
 			'terms'    => $body_id,
 		];
-		$modified = true;
+		$modified    = true;
+	}
+
+    if (isset($_GET['filterDriveline']) && !empty($_GET['filterDriveline'])) {
+        $drive_id = intval($_GET['filterDriveline']);
+        $tax_query[] = [
+            'taxonomy' =>VFD_TAXONOMY,
+            'field'    => 'term_id',
+            'terms'    => $drive_id,
+        ];
+        $modified = true;
 	}
 
     if ($modified && !empty($tax_query)) {
@@ -514,6 +587,68 @@ function vfd_get_body_terms_callback() {
 	wp_send_json_success(array_values($unique_bodys)); // Return unique terms
 }
 
+	/**
+	 * AJAX Handler: Get available driveline options for a selected model, year and body.
+	 */
+	add_action('wp_ajax_vfd_get_driveline_terms', 'vfd_get_driveline_terms_callback');
+	add_action('wp_ajax_nopriv_vfd_get_driveline_terms', 'vfd_get_driveline_terms_callback');
+	function vfd_get_driveline_terms_callback() {
+		check_ajax_referer('vfd_filter_nonce', 'nonce'); // Uses check_ajax_referer for consistency
+		$model_term_id = isset($_POST['model_id']) ? intval($_POST['model_id']) : 0;
+		$year_term_id = isset($_POST['year_id']) ? intval($_POST['year_id']) : 0;
+		$body_term_id = isset($_POST['body_id']) ? intval($_POST['body_id']) : 0;
+		if ( ! $model_term_id || ! $year_term_id) {
+			wp_send_json_error( 'Missing model, year or body provided.' );
+		}
+
+		// Find products that have the selected model term.
+		$post_ids = get_posts([
+			'post_type'      => 'product',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'tax_query'      => [
+				'relation' => 'AND',
+				[
+					'taxonomy' => VFD_TAXONOMY,
+					'field' => 'term_id',
+					'terms' => $model_term_id
+				],
+				[
+					'taxonomy' => YEAR_TAXONOMY,
+					'field' => 'term_id',
+					'terms' => $year_term_id
+				],
+				[
+					'taxonomy' => BODY_TAXONOMY,
+					'field' => 'term_id',
+					'terms' => $body_term_id
+				],
+			],
+		]);
+
+		if (empty($post_ids)) {
+			wp_send_json_success([]); // No products found for this model, so no years
+			return;
+		}
+
+		// Get all 'model_year' terms associated with those products.
+		$driveline_terms = wp_get_object_terms($post_ids, VFD_TAXONOMY, ['orderby' => 'name', 'order' => 'ASC']);
+
+		if (is_wp_error($driveline_terms)) {
+			wp_send_json_error('Could not retrieve driveline terms.');
+		}
+
+		// Remove duplicates (wp_get_object_terms can return duplicates if a post has multiple terms)
+		$unique_drivelines = [];
+		foreach ($driveline_terms as $term) {
+			if (intval($term->parent) === $model_term_id) {
+				$unique_drivelines[$term->term_id] = $term;
+			}
+		}
+
+		wp_send_json_success(array_values($unique_drivelines)); // Return unique terms
+	}
+
 /**
  * AJAX Handler: Get term names by their IDs.
  * New endpoint for fetching names when needed by JavaScript initialization.
@@ -527,12 +662,14 @@ function vfd_get_term_names_callback() {
     $model_id = isset($_POST['model_id']) ? intval($_POST['model_id']) : 0;
     $year_id = isset($_POST['year_id']) ? intval($_POST['year_id']) : 0;
 	$body_id = isset($_POST['body_id']) ? intval($_POST['body_id']) : 0;
+	$driveline_id = isset($_POST['driveline_id']) ? intval($_POST['driveline_id']) : 0;
 
     $response_data = [
         'makeName' => '',
         'modelName' => '',
         'yearName' => '',
         'bodyName' => '',
+        'drivelineName' => '',
     ];
 
     if ($make_id) {
@@ -559,9 +696,19 @@ function vfd_get_term_names_callback() {
             $response_data['bodyName'] = $term->name;
         }
     }
+	if ($driveline_id) {
+		$term = get_term($driveline_id, VFD_TAXONOMY);
+		if ($term && !is_wp_error($term)) {
+			$response_data['drivelineName'] = $term->name;
+		}
+	}
 
     // Only send success if all three names were found, otherwise send error (or specific names if partially found)
-    if ( $response_data['makeName'] && $response_data['modelName'] && $response_data['yearName'] && $response_data['bodyName'] ) {
+    if ( $response_data['makeName']
+        && $response_data['modelName']
+        && $response_data['yearName']
+        && $response_data['bodyName']
+        && $response_data['drivelineName']) {
         wp_send_json_success($response_data);
     } else {
         // Send error with partial data if some names couldn't be retrieved for debugging
@@ -585,6 +732,9 @@ function vfd_debug_info() {
         }
 	    if (isset($_GET['filterBody'])) {
 		    echo '<!-- VFD: Body filter = ' . esc_html($_GET['filterBody']) . ' -->';
+	    }
+	    if (isset($_GET['filterDriveline'])) {
+		    echo '<!-- VFD: Driveline filter = ' . esc_html($_GET['filterDriveline']) . ' -->';
 	    }
     }
 }

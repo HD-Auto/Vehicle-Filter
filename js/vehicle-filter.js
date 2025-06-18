@@ -9,16 +9,17 @@
 			$model              		= $('#vfd-model'),
 			$year               		= $('#vfd-year'),
 			$body               		= $('#vfd-body'),
+			$driveline               	= $('#vfd-driveline'),
 			$submit             		= $('#vfd-submit-button'),
 			$resetForm          		= $('#vfd-reset-button'),
 			$resetDisplay       		= $('#vfd-reset-display-button'),
 			$drawerToggle       		= $('#vfd-drawer-toggle'),
 			$drawerContent      		= $('#vfd-drawer-content'),
-			$form          	  		= $('#vehicle-filter-form'),
+			$form          	  			= $('#vehicle-filter-form'),
 			shopUrl             		= vfd_ajax_object.shop_url,
 			AJAX_URL            		= vfd_ajax_object.ajax_url,
 			NONCE               		= vfd_ajax_object.nonce,
-			SESSION_KEY         		= 'vfd_selected_filters';
+			SESSION_KEY        	= 'vfd_selected_filters';
 
 		function log() {
 			const ts = new Date()
@@ -43,7 +44,8 @@
 				f && f.make && f.makeName &&
 				f.model && f.modelName &&
 				f.year  && f.yearName &&
-				f.body && f.bodyName
+				f.body && f.bodyName &&
+				f.driveline && f.drivelineName
 			) {
 				sessionStorage.setItem(SESSION_KEY, JSON.stringify(f));
 				log('Saved filters →', f);
@@ -63,7 +65,8 @@
 					o.make && o.makeName &&
 					o.model && o.modelName &&
 					o.year  && o.yearName &&
-					o.body && o.bodyName
+					o.body && o.bodyName &&
+					o.driveline && o.drivelineName
 				) {
 					log('Loaded filters from session →', o);
 					return o;
@@ -76,7 +79,7 @@
 		}
 
 		/* Fetch names via AJAX */
-		function fetchTermNames(makeId, modelId, yearId, bodyId) {
+		function fetchTermNames(makeId, modelId, yearId, bodyId, drivelineId) {
 			return $.post({
 				url:  AJAX_URL,
 				data: {
@@ -85,6 +88,7 @@
 					model_id: modelId,
 					year_id:  yearId,
 					body_id:  bodyId,
+					driveline_id: drivelineId,
 					nonce:    NONCE
 				}
 			}).then(res => {
@@ -112,7 +116,10 @@
 				.prop('disabled', true);
 			$body
 				.html('<option value="">Select Year First</option>')
-				.prop('disabled', true)
+				.prop('disabled', true);
+			$driveline
+				.html('<option value="">Select Body First</option>')
+				.prop('disabled', true);
 			$submit.prop('disabled', true).text('Set');
 
 			// Mobile vs Desktop toggling
@@ -138,7 +145,8 @@
 				`My Vehicle: <strong>${f.makeName}</strong> ` +
 				`<strong>${f.modelName}</strong> ` +
 				`<strong>${f.yearName}</strong> ` +
-				`<strong>${f.bodyName}</strong>`
+				`<strong>${f.bodyName}</strong> ` +
+				`<strong>${f.drivelineName}</strong>`
 			);
 
 			const url = new URL(shopUrl);
@@ -146,6 +154,7 @@
 			url.searchParams.set('filterModel', f.model);
 			url.searchParams.set('filterYear',  f.year);
 			url.searchParams.set('filterBody', f.body);
+			url.searchParams.set('filterDriveline', f.driveline);
 			$goToShop.attr('href', url.toString());
 
 			$displayVehicleInfo.css('display', 'flex').show();
@@ -159,21 +168,24 @@
 			const m1 = params.get('filterMake'),
 				m2 = params.get('filterModel'),
 				y  = params.get('filterYear'),
-				b = params.get('filterBody');
+				b = params.get('filterBody'),
+				d = params.get('filterDriveline');
 			let chosen = null;
 
-			if (m1 && m2 && y && b) {
+			if (m1 && m2 && y && b && d) {
 				try {
-					const names = await fetchTermNames(m1, m2, y, b);
+					const names = await fetchTermNames(m1, m2, y, b, d);
 					chosen = {
 						make: m1,
 						model: m2,
 						year: y,
 						body: b,
+						driveline: d,
 						makeName:  names.makeName,
 						modelName: names.modelName,
 						yearName:  names.yearName,
-						bodyName: names.bodyName
+						bodyName: names.bodyName,
+						drivelineName: names.drivelineName
 					};
 					saveFilters(chosen);
 				} catch (err) {
@@ -200,6 +212,7 @@
 			$model.html('<option>Loading…</option>').prop('disabled', true);
 			$year.html('<option>Select Model First</option>').prop('disabled', true);
 			$body.html('<option>Select Year First</option>').prop('disabled', true);
+			$driveline.html('<option>Select Body First</option>').prop('disabled', true);
 			$submit.prop('disabled', true);
 
 			if (!id) return;
@@ -225,6 +238,8 @@
 		$model.on('change', function() {
 			const id = $(this).val();
 			$year.html('<option>Loading…</option>').prop('disabled', true);
+			$body.html('<option value="">Select Year First</option>').prop('disabled', true);
+			$driveline.html('<option value="">Select Body First</option>').prop('disabled', true);
 			$submit.prop('disabled', true);
 
 			if (!id) return;
@@ -253,6 +268,7 @@
 			const modelId = $model.val();
 
 			$body.html('<option>Loading...</option>').prop('disabled', true);
+			$driveline.html('<option value="">Select Body First</option>').prop('disabled', true);
 			$submit.prop('disabled', true);
 
 			if (! yearId || ! modelId) {
@@ -284,7 +300,48 @@
 		});
 
 		$body.on('change', function() {
-			$submit.prop('disabled', !$(this).val());
+			const modelId = $model.val(),
+				yearId  = $year.val(),
+				bodyId  = $(this).val();
+
+			$driveline
+				.html('<option>Loading…</option>')
+				.prop('disabled', true);
+			$submit.prop('disabled', true);
+
+			if (! modelId || ! yearId || ! bodyId) {
+				$driveline.html(
+					'<option value="">Select Body First</option>'
+				);
+				return;
+			}
+
+			$.post({
+				url: AJAX_URL,
+				data: {
+					action:   'vfd_get_driveline_terms',
+					model_id: modelId,
+					year_id:  yearId,
+					body_id:  bodyId,
+					nonce:    NONCE,
+				}
+			}).then(res=>{
+				if(res.success && res.data.length){
+					let html = '<option value="">Select Driveline</option>';
+					res.data.forEach(t => {
+						html += `<option value="${t.term_id}">${t.name}</option>`;
+					});
+					$driveline.html(html).prop('disabled', false);
+				} else {
+					$driveline.html(
+						'<option value="">No Drivelines Found</option>'
+					);
+				}
+			});
+		});
+
+		$driveline.on('change', function() {
+			$submit.prop('disabled', ! $(this).val());
 		});
 
 		$('#vehicle-filter-form').on('submit', async function(e) {
@@ -292,19 +349,21 @@
 			const make  = $make.val(),
 				model = $model.val(),
 				year  = $year.val(),
-				body = $body.val();
-			if (!(make && model && year && body)) {
-				return alert('Please select Make, Model, Year and Body.');
+				body = $body.val(),
+				driveline = $driveline.val();
+			if (!(make && model && year && body && driveline)) {
+				return alert('Please select Make, Model, Year, Body and Driveline.');
 			}
 			$submit.prop('disabled', true).text('Setting…');
 			try {
-				const names = await fetchTermNames(make, model, year, body);
+				const names = await fetchTermNames(make, model, year, body, driveline);
 				const f     = {
-					make, model, year, body,
+					make, model, year, body, driveline,
 					makeName:  names.makeName,
 					modelName: names.modelName,
 					yearName:  names.yearName,
-					bodyName:  names.bodyName
+					bodyName:  names.bodyName,
+					drivelineName: names.drivelineName
 				};
 				saveFilters(f);
 				showDisplay(f);
